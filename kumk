@@ -1,0 +1,393 @@
+#!/bin/bash 
+
+set -e
+
+(( EUID )) && echo "$(basename ${0}) must be run as root (or with sudo)" && exit 1
+
+VERSION="0.6.9"
+
+URL=https://kernel.ubuntu.com/~kernel-ppa/mainline/
+DATA=/tmp/kumk
+[[ ! $2 = *lowlattency* ]] && MODE="generic" ||  MODE="lowlattency"
+TMP="${DATA}/tmp"
+BIN="${DATA}/bin"
+
+## set color
+C_OFF="\033[0;0m"
+C_GRE="\033[01;32m"
+C_BLU="\033[01;34m"
+C_YEL="\033[01;33m"
+C_RED="\033[01;31m"
+C_REDY="\033[01;33;41m"
+C_REDW="\033[01;37;41m"
+C_WHIT="\033[01;37m"
+INFO=" ${C_YEL}*${C_WHIT}"
+WARN=" ${C_GRE}*${C_YEL}"
+WARNNS=" ${C_YEL}"
+ERRO=" ${C_REDY}*${C_REDW}"
+ERROS=" ${C_RED}*${C_YEL}"
+
+##### localisation:
+## 
+set_locale(){
+    case ${LANG} in
+        'cs_CZ'|'cs_CZ.UTF-8')
+            error_must_enter_version_as_second_parameter="ERROR: Je potřeba zadat číslo verze jako druhý parametr..."
+            error_unknown_main_parameter="Neznámý hlavní parametr:"
+            help_show_avaiable_versions="zobrazit dostupné verze"
+            help_show_installed="zobrazit nainstalované"
+            help_download_and_install="stáhnout a nainstalovat"
+            help_download_only="pouze stáhnout"
+            help_install_only="pouze nainstalovat"
+            help_purge_kernel="odstranit jádro"
+            help_information="Informace:"
+            help_version="verze:"
+            help_ver_ver="určuje verzi pro \"i\", nebo filtr pro \"s\", \"l\""
+            help_ver_latest="automaticky rozpoznat poslední stabilní verzi pro \"i\""
+            help_ver_latest_rc="automaticky rozpoznat poslední rc verzi pro  \"i\""
+            help_ver_norc="použitelné pouze při \"s\" k zakázání zobrazení rc verze"
+            help_running_os="Běžící OS:"
+            help_running_kernel="Běžící Jádro:"
+            help_free_on="Volno v"
+
+            this_version_have_failed_build="Tato verze obsahuje neůspěšný build... Končím..."
+            downloading_ver="Stahuji ${VER}..."
+            packages_for_ver_not_found_exiting="Balíček pro ${VER} nenalezen... Končím..."
+            download_file_deb="Stahuji soubor: ${deb}..."
+            in_system_is_installed_libc_ge_233_installing_normal="v systému je nainstalována libc >=2.33, instaluji normálně..."
+            install_ver_yes_no="Instalovat ${VER}? [a/N] "
+            installing_kernel_version_gt_51116_and_libc6_is_lt_233_install_via_workaround="instalovaná verze jádra je >5.11.16 a libc6 je <2.33, instaluju workaroundem..."
+            installing_package="instaluji balíček"
+            installing_only_unpacking_package="instaluji/rozbaluji_pouze balíček"
+            installing_rest="instaluji zbylé:"
+            and="a"
+            installing_kernel_version_le_51116_install_normal="instalovaná verze jádra je <=5.11.16, instaluju normálně..."
+            install_canceled="Instalace zrušena..."
+            downloading_package_file_for_extracting_tools="Stahuji balíček ${file} z kterého vypreparuji nástroje:"
+            unpacking_files="Rozbaluji soubory..."
+            copy_to="Kopíruji do"
+            replacing_binary_in="nahrazuji binárky v"
+            backup_previous_file_to="zálohuji původní soubor do"
+            configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version="Konfiguruji balíček linux-headers-${VER_LONG} s ingorováním závislostí na verzi libc6..."
+            removing_backup_of_previous_file="odstranuji zálohu původního souboru"
+            package_ver_not_found="Žádný balíček verze ${VER} nebyl nalezen..."
+            running="běžící"
+            is_running_kernel_exiting="je běžící jádro... Končím..."
+            set_ver_as_default_for_sicherboot="Nastavit ${VER} jako výchozí pro sicherboot? [a/N]"
+            detect_new_id_via_bootctl="detekuji new ID nástrojem bootctl..."
+            previous_detect_failed_try_default_efi_dir="předchozí detekce selhala, zkouším výchozí adresář /boot/efi..."
+            not_detected_new_id_skipping_setting="nedetekovano new ID, preskakuji nastaveni..."
+            ambiguous_detection_new_id_skipping_setting="nejistá detekce new ID, preskakuji nastaveni..."
+            set_default_to="nastavuji výchozí na:"
+            sicherboot_not_found_exiting="Sicherboot nenalezen... Končím..."
+            finish="Dokončeno..."
+        ;;
+        *)
+            error_must_enter_version_as_second_parameter="ERROR: Must enter version as second param..."
+            error_unknown_main_parameter="ERROR: Unknown main parameter:"
+            help_show_avaiable_versions="show avaiable versions"
+            help_show_installed="show installed"
+            help_download_and_install="download and install"
+            help_download_only="download only"
+            help_install_only="install only"
+            help_purge_kernel="purge kernel"
+            help_information="Information:"
+            help_version="version:"
+            help_ver_ver="specify version for \"i\" or filter for \"s\", \"l\""
+            help_ver_latest="auto detect latest stable version for \"i\""
+            help_ver_latest_rc="auto detect latest rc version for \"i\""
+            help_ver_norc="used only for \"s\" to disable show rc version"
+            help_running_os="Running OS:"
+            help_running_kernel="Running Kernel:"
+            help_free_on="Free on"
+
+            this_version_have_failed_build="This version have failed build. Exiting..."
+            downloading_ver="Downloading ${VER}..."
+            packages_for_ver_not_found_exiting="Packages for ${VER} not found... Exiting..."
+            download_file_deb="Downloading file: ${deb}..."
+            in_system_is_installed_libc_ge_233_installing_normal="in system is installed libc >=2.33, installing normal..."
+            install_ver_yes_no="Install ${VER}? [y/N] "
+            installing_kernel_version_gt_51116_and_libc6_is_lt_233_install_via_workaround="installing kernel version >5.11.16 and libc6 is <2.33, installing via workaround..."
+            installing_package="installing package"
+            installing_only_unpacking_package="installing/only_unpacking package"
+            installing_rest="installing rest:"
+            and="and"
+            installing_kernel_version_le_51116_install_normal="installing kernel version <=5.11.16, install normal..."
+            install_canceled="Install canceled..."
+            downloading_package_file_for_extracting_tools="Downloading package ${file} for extracting tools:"
+            unpacking_files="Unpacking files..."
+            copy_to="Copy to"
+            replacing_binary_in="replacing bynary in"
+            backup_previous_file_to="backup previous file to"
+            configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version="Configuring package linux-headers-${VER_LONG} with ignoring depends on libc6 version..."
+            removing_backup_of_previous_file="removing backup of previous file"
+            package_ver_not_found="Package version ${VER} not found..."
+            running="running"
+            is_running_kernel_exiting="is running kernel... Exiting..."
+            set_ver_as_default_for_sicherboot="Set ${VER} as default for sicherboot? [y/N]"
+            detect_new_id_via_bootctl="detect new ID via tool bootctl..."
+            previous_detect_failed_try_default_efi_dir="previous detect failed, trying default dir /boot/efi..."
+            not_detected_new_id_skipping_setting="not detected new ID, skipping setting..."
+            ambiguous_detection_new_id_skipping_setting="ambiguous detection of new ID, skipping setting..."
+            set_default_to="set default to:"
+            sicherboot_not_found_exiting="Sicherboot not found... Exiting..."
+            finish="Finish..."
+        ;;
+    esac
+}
+
+
+## set colored echo's
+einfo() {
+    echo ""
+    echo -e "$INFO $1${C_OFF}"
+    if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
+}
+
+einfon() {
+    echo ""
+    echo -n -e "$INFO $1${C_OFF}"
+    if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
+}
+
+ewarn() {
+    echo -e "   $WARN $1${C_OFF}"
+    if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
+}
+
+### without star
+ewarnns() {
+    echo -e "   $WARNNS $1${C_OFF}"
+    if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
+}
+
+ewarny() {
+    echo -e "\n   $WARN $1${C_OFF}"
+    if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
+}
+
+eerrorsmall(){
+    echo -e "   $ERROS $1${C_OFF}"
+    if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
+}
+
+eerror() {
+    echo -e "$ERRO $1${C_OFF}\n"
+    if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
+}
+
+
+detect_arch(){
+    arch_out="$(arch)"
+    [[ $arch_out = x86_64 ]] && ARCH="amd64" || ARCH="i386"
+}
+
+download_kernel(){
+    mkdir -p ${TMP}
+    header="${TMP}/${VER}-HEADER.html"
+    wget -q ${URL}/v${VER}/HEADER.html -O ${header}
+
+    set_locale
+
+    if (grep -q -e "Build for ${ARCH} failed" -e "Test ${ARCH}/build failed" ${header}); then
+        eerror "${this_version_have_failed_build}"
+        exit
+    else
+        debs=( $(grep ${ARCH} -A7 -m1 ${header} | sed 's/deb">.*/deb/g;s/.*href="//' | grep -v BUILD | grep -e all -e ${MODE}) )
+        einfo "${downloading_ver}"
+        [[ $debs ]] || { eerror "${packages_for_ver_not_found_exiting}"; exit; }
+        for deb in ${debs[@]}; do
+            set_locale
+            ewarn "${download_file_deb}"
+            wget -q --continue --no-verbose --directory-prefix ${DATA}/${VER} ${URL}/v${VER}/${deb}
+        done
+    fi
+}
+
+install_kernel(){
+    einfon "${install_ver_yes_no}"
+    read -n1 answer; echo ""
+    if [[ "${answer}" = [y,Y,a,A] ]]; then 
+        libc6_ver="$(dpkg -l libc6 2>/dev/null | grep libc6 | grep amd64 | awk '{print $3}' | sed 's/-.*//')"
+        if [[ ${libc6_ver//./,} -ge 2,33 ]]; then
+            (dpkg --compare-versions "${VER}" "gt" "5.11.16") && ewarn "${in_system_is_installed_libc_ge_233_installing_normal}"
+            dpkg -i ${DATA}/${VER}/*.deb
+        else
+            if (dpkg --compare-versions "${VER}" "gt" "5.11.16"); then
+                ewarn "${installing_kernel_version_gt_51116_and_libc6_is_lt_233_install_via_workaround}"
+                ewarn "${installing_package} $(basename $(ls ${DATA}/${VER}/linux-header*all*.deb))..."
+                dpkg -i ${DATA}/${VER}/linux-header*all*.deb
+                ewarn "${installing_only_unpacking_package} $(basename $(ls ${DATA}/${VER}/linux-header*${MODE}*.deb))..."
+                dpkg --unpack ${DATA}/${VER}/linux-header*${MODE}*.deb
+                do_copy_bin
+                do_config_pkg
+                ewarn "${installing_rest} $(basename $(ls ${DATA}/${VER}/linux-image*.deb)) ${and} $(basename $(ls ${DATA}/${VER}/linux-module*.deb))"
+                dpkg -i ${DATA}/${VER}/linux-image*.deb ${DATA}/${VER}/linux-module*.deb
+            else
+                ewarn "${installing_kernel_version_le_51116_install_normal}"
+                dpkg -i ${DATA}/${VER}/*.deb
+            fi
+        fi
+    else
+        ewarn "${install_canceled}"
+        exit
+    fi
+
+    which sicherboot >/dev/null && sicherboot_set_default
+}
+
+do_get_bin(){
+    SRC_VER="5.11.16-051116-generic"
+    file="linux-headers-${SRC_VER}_5.11.16-051116.202104211235_amd64.deb"
+
+    set_locale
+    ewarn "${downloading_package_file_for_extracting_tools} fixdep, modpost, objtool..."
+    wget -q https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.11.16/amd64/${file} -O "${TMP}/${file}"
+
+    ewarn "${unpacking_files}"
+    ( ar --help | grep -q -m1 '\--output' ) && output="--output ${TMP}" || cd ${TMP}
+    ar x ${output} "${TMP}/${file}"
+    tar xf "${TMP}/data.tar.xz" --directory "${TMP}"
+    for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool; do
+        mkdir -p ${BIN}/${i%\/*}
+        ewarn "${copy_to} ${BIN}/${i}..."
+        cp -a  ${TMP}/usr/src/linux-headers-${SRC_VER}/${i} ${BIN}/${i}
+    done
+}
+
+do_copy_bin(){
+#    DST="/usr/src/linux-headers-${VER}"
+    VER_LONG=$(ls -d /usr/src/linux-headers-${VER}*${MODE} | sed 's/.*headers-//')
+    DST="/usr/src/linux-headers-${VER_LONG}"
+    ewarn "${replacing_binary_in} ${DST}..."
+    for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool; do
+        [[ -f ${BIN}/${i} ]] || do_get_bin
+        [[ -f ${DST}/${i}.orig ]] || { ewarn "${backup_previous_file_to} ${DST}/${i}.orig"; cp -a ${DST}/${i} ${DST}/${i}.orig; }
+    done
+    cp -a "${BIN}/"* ${DST}
+}
+
+do_config_pkg(){
+    if (dpkg -l | grep linux-headers-${VER_LONG} | grep -q ^iU); then
+        set_locale
+        einfo "${configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version}"
+        dpkg --configure --ignore-depends=libc6 linux-headers-${VER_LONG}
+    else
+        which dkms >/dev/null && do_dkms ${VER_LONG}
+    fi
+    sed "/Depends: linux-headers-${VER_LONG/-generic}, libc6/s/libc6 (>= 2...)/libc6 (>= 2.31)/" -i /var/lib/dpkg/status
+}
+
+purge_kernel(){
+    VER_LONG=$(ls -d /usr/src/linux-headers-${VER}*${MODE} 2>/dev/null | sed 's/.*headers-//')
+    purge_packages="$(dpkg -l | awk '{print $2}' | grep -e linux-image -e linux-modules -e linux-headers | grep ${VER})" || true
+    ### TODO check if ^^^ match only one VER !!! 
+    ### TODO ^^ if purge system/repository last kernel, also remove meta's: linux-generic-hwe-20.04* linux-headers-generic-hwe-20.04* linux-image-generic-hwe-20.04*
+    ###		not possible without, because this is calc by apt dependencies
+
+    [[ ${running_kernel} = ${VER_LONG} ]] && { eerror "${running_kernel} ${is_running_kernel}"; exit; }
+
+    DST="/usr/src/linux-headers-${VER_LONG}"
+    for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool; do
+        rmdir ${DST}/$(dirname ${i}) 2>/dev/null || true
+        [[ -f ${DST}/${i}.orig ]] && { ewarn "${removing_backup_of_previous_file} ${DST}/${i}.orig"; rm -f ${DST}/${i}.orig; }
+    done
+    rmdir ${DST}/scripts ${DST}/tools/bpf ${DST}/tools ${DST} 2>/dev/null || true
+    
+    [[ ${purge_packages} ]] && apt purge ${purge_packages} || { eerror "${package_ver_not_found}"; exit; }
+}
+
+show_versions(){
+    is_avaiable="$(wget -q "https://kernel.ubuntu.com/~kernel-ppa/mainline" -O- | grep ">v5" | sed 's/.*>v5/5/;s/\/<.*//' | sort --version-sort)"
+    [[ $2 = norc || $1 = norc ]] && is_avaiable="$(echo "${is_avaiable}" | grep -v rc)"
+    [[ $1 ]] && echo "${is_avaiable}" | grep ^${1} ||  echo "${is_avaiable}"
+    exit 0
+}
+
+show_installed(){
+    is_installed="$(dpkg -l | awk '{print $2}' | grep linux-image.*.${MODE}$ | grep -v linux-image-generic | sed 's/linux-image-signed-//;s/linux-image-unsigned-//;s/linux-image-//' | sort --version-sort)"
+    [[ $1 ]] && echo "${is_installed}" | grep ^${1} || (echo  "${is_installed}" | sed "s/^${running_kernel}$/& (${running})/")
+    exit 0
+}
+
+sicherboot_set_default(){
+    einfon "${set_ver_as_default_for_sicherboot}"
+    read -n1 forsicher
+
+    if [[ ${forsicher} = [y,Y,a,A] ]]; then
+        ewarny "${detect_new_id_via_bootctl}"
+
+        new_default="$(bootctl list 2>/dev/null | grep id: | grep ${VER} | sed 's/.*id: //')"
+
+        ### maybe because (on my t430s) "bootctl" show "WARNING: The boot loader reports different ESP UUID then detected!" ??
+        [[ ${new_default} ]] || { ewarn "${previous_detect_failed_try_default_efi_dir}"; new_default="$(basename $(ls /boot/efi/loader/entries/*${VER}*))"; }
+
+        [[ ${new_default} ]] || { eerrorsmall "${not_detected_new_id_skipping_setting}"; return; }
+        new_default_count="$(echo "${new_default}" | wc -l)"
+        [[ ${new_default_count} = 1 ]] || { eerrorsmall "${ambiguous_detection_new_id_skipping_setting}"; return; }
+
+        ewarn "${set_default_to} ${new_default}"
+        bootctl set-default "${new_default}"
+    fi
+}
+
+sicherboot_set_default_only(){
+    which sicherboot >/dev/null && sicherboot_set_default || { eerror "${sicherboot_not_found_exiting}"; exit; }
+}
+
+show_usage(){
+    einfo "Usage: $(basename $0) [s|l|i|n|p] [ver|latest|latest-rc|norc] <norc>"
+    ewarnns "s, show \t - ${help_show_avaiable_versions}"
+    ewarnns "l, list \t - ${help_show_installed}"
+    echo ""
+    ewarnns "i, install\t - ${help_download_and_install}"
+    ewarnns "d, download - ${help_download_only}"
+    ewarnns "n, only_install - ${help_install_only}"
+    ewarnns "p, purge \t - ${help_purge_kernel}"
+    echo ""
+    ewarnns "ver \t - ${help_ver_ver}"
+    ewarnns "latest \t - ${help_ver_latest}"
+    ewarnns "latest-rc \t - ${help_ver_latest_rc}"
+    ewarnns "norc \t - ${help_ver_norc}"
+
+    einfo "${help_information}"
+    ewarnns "$(basename $0) ${help_version} ${VERSION}"
+    ewarnns "${help_running_os} $(lsb_release -s -d) ($(lsb_release -s -c))"
+    ewarnns "${help_running_kernel} $(uname -r)"
+    ewarnns "${help_free_on} /boot:$(df -h --output=avail /boot | tail -n1)"
+    [[ -d /boot/efi ]] && ewarnns "${help_free_on} /boot/efi:$(df -h --output=avail /boot/efi | tail -n1)"
+    echo ""
+    exit
+}
+
+set_locale
+if [[ "$1" != @(s|show|l|list|i|install|d|download|n|only_install|p|purge|c|sicherboot) ]]; then
+    eerror "${error_unknown_main_parameter} ${1}"
+    show_usage
+elif [[ "$2" = "" && "$1" != @(s|show) && "$1" != "" && "$1" != @(l|list) ]]; then
+    eerror "${error_must_enter_version_as_second_parameter}"
+    exit
+elif [[ "$2" = "latest" && "$1" != @(s|show) ]]; then
+    VER="$(show_versions | grep -v rc | tail -n1 | sed 's/^v//')"
+elif [[ "$2" = "latest-rc" && "$1" != @(s|show) ]]; then
+    VER="$(show_versions | tail -n1 | sed 's/^v//')"
+elif [[ "$1" != @(s|show) ]]; then
+    VER="$(echo ${2} | sed 's/-generic//;s/-lowlattency//;s/*//g')"
+fi
+
+detect_arch
+running_kernel="$(uname -r)"
+
+case $1 in
+    's'|'show') 	show_versions $2 $3 ;;
+    'i'|'install') 	download_kernel && install_kernel ;;
+    'd'|'download') 	download_kernel ;;
+    'n'|'only_install') install_kernel ;;
+    'p'|'purge') 	purge_kernel ;;
+    'l'|'list') 	show_installed $2 ;;
+    'c'|'sicherboot')	sicherboot_set_default_only ;;
+    *) show_usage ;;
+esac
+
+einfo "${finish}"
+ 
