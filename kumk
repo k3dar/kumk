@@ -1,10 +1,10 @@
-#!/bin/bash 
+#!/bin/bash
 
 set -e
 
 (( EUID )) && echo "$(basename ${0}) must be run as root (or with sudo)" && exit 1
 
-VERSION="0.6.9"
+VERSION="0.6.10"
 
 URL=https://kernel.ubuntu.com/~kernel-ppa/mainline/
 DATA=/tmp/kumk
@@ -54,9 +54,10 @@ set_locale(){
             downloading_ver="Stahuji ${VER}..."
             packages_for_ver_not_found_exiting="Balíček pro ${VER} nenalezen... Končím..."
             download_file_deb="Stahuji soubor: ${deb}..."
-            in_system_is_installed_libc_ge_233_installing_normal="v systému je nainstalována libc >=2.33, instaluji normálně..."
+            in_system_is_installed_libc_ge_req_installing_normal="v systému je nainstalována libc >=${libc6_req}, instaluji normálně..."
             install_ver_yes_no="Instalovat ${VER}? [a/N] "
-            installing_kernel_version_gt_51116_and_libc6_is_lt_233_install_via_workaround="instalovaná verze jádra je >5.11.16 a libc6 je <2.33, instaluju workaroundem..."
+            installing_kernel_version_gt_51116_and_libc6_is_lt_req_install_via_workaround="instalovaná verze jádra je >5.11.16 a libc6 je <${libc6_req}, instaluju workaroundem..."
+            install_workaround_depends_yes_no="instalace workaroundem požaduje doinstalovat chybějící závislosti: ${need_install_depends/ } [a/N] "
             installing_package="instaluji balíček"
             installing_only_unpacking_package="instaluji/rozbaluji_pouze balíček"
             installing_rest="instaluji zbylé:"
@@ -66,9 +67,9 @@ set_locale(){
             downloading_package_file_for_extracting_tools="Stahuji balíček ${file} z kterého vypreparuji nástroje:"
             unpacking_files="Rozbaluji soubory..."
             copy_to="Kopíruji do"
-            replacing_binary_in="nahrazuji binárky v"
+            replacing_binaries_in="nahrazuji binárky v"
             backup_previous_file_to="zálohuji původní soubor do"
-            configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version="Konfiguruji balíček linux-headers-${VER_LONG} s ingorováním závislostí na verzi libc6..."
+            configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version="konfiguruji balíček linux-headers-${VER_LONG} s ingorováním závislostí na verzi libc6..."
             removing_backup_of_previous_file="odstranuji zálohu původního souboru"
             package_ver_not_found="Žádný balíček verze ${VER} nebyl nalezen..."
             running="běžící"
@@ -105,9 +106,10 @@ set_locale(){
             downloading_ver="Downloading ${VER}..."
             packages_for_ver_not_found_exiting="Packages for ${VER} not found... Exiting..."
             download_file_deb="Downloading file: ${deb}..."
-            in_system_is_installed_libc_ge_233_installing_normal="in system is installed libc >=2.33, installing normal..."
+            in_system_is_installed_libc_ge_req_installing_normal="in system is installed libc >=${libc6_req}, installing normal..."
             install_ver_yes_no="Install ${VER}? [y/N] "
-            installing_kernel_version_gt_51116_and_libc6_is_lt_233_install_via_workaround="installing kernel version >5.11.16 and libc6 is <2.33, installing via workaround..."
+            installing_kernel_version_gt_51116_and_libc6_is_lt_req_install_via_workaround="installing kernel version >5.11.16 and libc6 is <${libc6_req}, installing via workaround..."
+            install_workaround_depends_yes_no="installing via workaround need install missing dependencies: ${need_install_depends/ } [y/N] "
             installing_package="installing package"
             installing_only_unpacking_package="installing/only_unpacking package"
             installing_rest="installing rest:"
@@ -117,9 +119,9 @@ set_locale(){
             downloading_package_file_for_extracting_tools="Downloading package ${file} for extracting tools:"
             unpacking_files="Unpacking files..."
             copy_to="Copy to"
-            replacing_binary_in="replacing bynary in"
+            replacing_binaries_in="replacing binaries in"
             backup_previous_file_to="backup previous file to"
-            configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version="Configuring package linux-headers-${VER_LONG} with ignoring depends on libc6 version..."
+            configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version="configuring package linux-headers-${VER_LONG} with ignoring depends on libc6 version..."
             removing_backup_of_previous_file="removing backup of previous file"
             package_ver_not_found="Package version ${VER} not found..."
             running="running"
@@ -155,6 +157,11 @@ ewarn() {
     if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
 }
 
+ewarnn() {
+    echo -n -e "   $WARN $1${C_OFF}"
+    if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
+}
+
 ### without star
 ewarnns() {
     echo -e "   $WARNNS $1${C_OFF}"
@@ -176,7 +183,6 @@ eerror() {
     if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
 }
 
-
 detect_arch(){
     arch_out="$(arch)"
     [[ $arch_out = x86_64 ]] && ARCH="amd64" || ARCH="i386"
@@ -186,8 +192,6 @@ download_kernel(){
     mkdir -p ${TMP}
     header="${TMP}/${VER}-HEADER.html"
     wget -q ${URL}/v${VER}/HEADER.html -O ${header}
-
-    set_locale
 
     if (grep -q -e "Build for ${ARCH} failed" -e "Test ${ARCH}/build failed" ${header}); then
         eerror "${this_version_have_failed_build}"
@@ -209,23 +213,27 @@ install_kernel(){
     read -n1 answer; echo ""
     if [[ "${answer}" = [y,Y,a,A] ]]; then 
         libc6_ver="$(dpkg -l libc6 2>/dev/null | grep libc6 | grep amd64 | awk '{print $3}' | sed 's/-.*//')"
-        if [[ ${libc6_ver//./,} -ge 2,33 ]]; then
-            (dpkg --compare-versions "${VER}" "gt" "5.11.16") && ewarn "${in_system_is_installed_libc_ge_233_installing_normal}"
-            dpkg -i ${DATA}/${VER}/*.deb
+        libc6_req="$(dpkg-deb -f ${DATA}/${VER}/linux-header*${MODE}*.deb Depends | sed 's/.*libc6 (>= //;s/).*//')"
+        set_locale
+
+        if [[ ${libc6_ver//./,} -ge ${libc6_req//./,} ]]; then
+            (dpkg --compare-versions "${VER}" "gt" "5.11.16") && ewarn "${in_system_is_installed_libc_ge_req_installing_normal}"
+            dpkg -i ${DATA}/${VER}/*.deb >/dev/null
         else
+            check_depends
             if (dpkg --compare-versions "${VER}" "gt" "5.11.16"); then
-                ewarn "${installing_kernel_version_gt_51116_and_libc6_is_lt_233_install_via_workaround}"
+                ewarn "${installing_kernel_version_gt_51116_and_libc6_is_lt_req_install_via_workaround}"
                 ewarn "${installing_package} $(basename $(ls ${DATA}/${VER}/linux-header*all*.deb))..."
-                dpkg -i ${DATA}/${VER}/linux-header*all*.deb
+                dpkg -i ${DATA}/${VER}/linux-header*all*.deb >/dev/null
                 ewarn "${installing_only_unpacking_package} $(basename $(ls ${DATA}/${VER}/linux-header*${MODE}*.deb))..."
-                dpkg --unpack ${DATA}/${VER}/linux-header*${MODE}*.deb
+                dpkg --unpack ${DATA}/${VER}/linux-header*${MODE}*.deb >/dev/null
                 do_copy_bin
                 do_config_pkg
                 ewarn "${installing_rest} $(basename $(ls ${DATA}/${VER}/linux-image*.deb)) ${and} $(basename $(ls ${DATA}/${VER}/linux-module*.deb))"
-                dpkg -i ${DATA}/${VER}/linux-image*.deb ${DATA}/${VER}/linux-module*.deb
+                dpkg -i ${DATA}/${VER}/linux-image*.deb ${DATA}/${VER}/linux-module*.deb >/dev/null
             else
                 ewarn "${installing_kernel_version_le_51116_install_normal}"
-                dpkg -i ${DATA}/${VER}/*.deb
+                dpkg -i ${DATA}/${VER}/*.deb >/dev/null
             fi
         fi
     else
@@ -233,14 +241,34 @@ install_kernel(){
         exit
     fi
 
-    which sicherboot >/dev/null && sicherboot_set_default
+    which sicherboot >/dev/null && sicherboot_set_default || true
+}
+
+check_depends(){
+    depends_packages=( binutils )
+    for package in ${depends_packages[@]}; do
+        dpkg -l ${package} | grep -q '^ii' || need_install_depends+=" ${package}"
+    done
+
+    if [[ ${need_install_depends} ]]; then
+        set_locale
+        ewarnn "${install_workaround_depends_yes_no}"
+        read -n1 answer; echo ""
+
+        if [[ "${answer}" = [y,Y,a,A] ]]; then 
+            apt-get update -qq >/dev/null && apt-get install -y ${need_install_depends} >/dev/null
+        else
+            ewarn "${install_canceled}"
+            exit
+        fi
+    fi
 }
 
 do_get_bin(){
     SRC_VER="5.11.16-051116-generic"
     file="linux-headers-${SRC_VER}_5.11.16-051116.202104211235_amd64.deb"
-
     set_locale
+
     ewarn "${downloading_package_file_for_extracting_tools} fixdep, modpost, objtool..."
     wget -q https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.11.16/amd64/${file} -O "${TMP}/${file}"
 
@@ -259,7 +287,7 @@ do_copy_bin(){
 #    DST="/usr/src/linux-headers-${VER}"
     VER_LONG=$(ls -d /usr/src/linux-headers-${VER}*${MODE} | sed 's/.*headers-//')
     DST="/usr/src/linux-headers-${VER_LONG}"
-    ewarn "${replacing_binary_in} ${DST}..."
+    ewarn "${replacing_binaries_in} ${DST}..."
     for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool; do
         [[ -f ${BIN}/${i} ]] || do_get_bin
         [[ -f ${DST}/${i}.orig ]] || { ewarn "${backup_previous_file_to} ${DST}/${i}.orig"; cp -a ${DST}/${i} ${DST}/${i}.orig; }
@@ -269,9 +297,8 @@ do_copy_bin(){
 
 do_config_pkg(){
     if (dpkg -l | grep linux-headers-${VER_LONG} | grep -q ^iU); then
-        set_locale
-        einfo "${configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version}"
-        dpkg --configure --ignore-depends=libc6 linux-headers-${VER_LONG}
+        ewarn "${configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version}"
+        dpkg --configure --ignore-depends=libc6 linux-headers-${VER_LONG} >/dev/null
     else
         which dkms >/dev/null && do_dkms ${VER_LONG}
     fi
@@ -285,7 +312,7 @@ purge_kernel(){
     ### TODO ^^ if purge system/repository last kernel, also remove meta's: linux-generic-hwe-20.04* linux-headers-generic-hwe-20.04* linux-image-generic-hwe-20.04*
     ###		not possible without, because this is calc by apt dependencies
 
-    [[ ${running_kernel} = ${VER_LONG} ]] && { eerror "${running_kernel} ${is_running_kernel}"; exit; }
+    [[ ${running_kernel} = ${VER_LONG} ]] && { eerror "${running_kernel} ${is_running_kernel_exiting}"; exit; }
 
     DST="/usr/src/linux-headers-${VER_LONG}"
     for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool; do
@@ -294,7 +321,7 @@ purge_kernel(){
     done
     rmdir ${DST}/scripts ${DST}/tools/bpf ${DST}/tools ${DST} 2>/dev/null || true
     
-    [[ ${purge_packages} ]] && apt purge ${purge_packages} || { eerror "${package_ver_not_found}"; exit; }
+    [[ ${purge_packages} ]] && apt-get purge ${purge_packages} >/dev/null || { eerror "${package_ver_not_found}"; exit; }
 }
 
 show_versions(){
@@ -374,6 +401,7 @@ elif [[ "$2" = "latest-rc" && "$1" != @(s|show) ]]; then
 elif [[ "$1" != @(s|show) ]]; then
     VER="$(echo ${2} | sed 's/-generic//;s/-lowlattency//;s/*//g')"
 fi
+set_locale
 
 detect_arch
 running_kernel="$(uname -r)"
