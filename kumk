@@ -40,9 +40,10 @@ set_locale(){
             help_download_only="pouze stáhnout"
             help_install_only="pouze nainstalovat"
             help_purge_kernel="odstranit jádro"
+            help_sicherboot="nastavit výchozí pro sicherboot"
             help_information="Informace:"
             help_version="verze:"
-            help_ver_ver="určuje verzi pro \"i\", \"p\", nebo filtr pro \"s\", \"l\""
+            help_ver_ver="určuje verzi pro \"i\", \"p\", \"b\", nebo filtr pro \"s\", \"l\""
             help_ver_latest="automaticky rozpoznat poslední stabilní verzi pro \"i\""
             help_ver_latest_rc="automaticky rozpoznat poslední rc verzi pro  \"i\""
             help_ver_norc="použitelné pouze při \"s\" k zakázání zobrazení rc verze"
@@ -84,6 +85,7 @@ set_locale(){
             ambiguous_detection_new_id_skipping_setting="nejistá detekce new ID, preskakuji nastaveni..."
             set_default_to="nastavuji výchozí na:"
             sicherboot_not_found_exiting="Sicherboot nenalezen... Končím..."
+            sicherboot_kernel_not_found="Nenalezeno jádro ${VER} k nastavení pro sicherboot výchozí... Končím..."
             finish="Dokončeno..."
         ;;
         *)
@@ -95,9 +97,10 @@ set_locale(){
             help_download_only="download only"
             help_install_only="install only"
             help_purge_kernel="purge kernel"
+            help_sicherboot="set default for sicherboot"
             help_information="Information:"
             help_version="version:"
-            help_ver_ver="specify version for \"i\", \"p\" or filter for \"s\", \"l\""
+            help_ver_ver="specify version for \"i\", \"p\", \"b\" or filter for \"s\", \"l\""
             help_ver_latest="auto detect latest stable version for \"i\""
             help_ver_latest_rc="auto detect latest rc version for \"i\""
             help_ver_norc="used only for \"s\" to disable show rc version"
@@ -139,6 +142,7 @@ set_locale(){
             ambiguous_detection_new_id_skipping_setting="ambiguous detection of new ID, skipping setting..."
             set_default_to="set default to:"
             sicherboot_not_found_exiting="Sicherboot not found... Exiting..."
+            sicherboot_kernel_not_found="Not found kernel ${VER} for sicherboot default setting... Exiting..."
             finish="Finish..."
         ;;
     esac
@@ -320,6 +324,7 @@ do_copy_bin(){
 
 do_config_pkg(){
     if (dpkg -l | grep linux-headers-${VER_LONG} | grep -q ^iU); then
+        set_locale
         ewarn "${configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version}"
         dpkg --configure --ignore-depends=libc6 linux-headers-${VER_LONG} >/dev/null
     else
@@ -373,6 +378,7 @@ show_installed(){
 }
 
 sicherboot_set_default(){
+    ls /boot/efi/loader/entries/*${VER}* &>/dev/null || { eerror "${sicherboot_kernel_not_found}"; exit; }
     einfon "${set_ver_as_default_for_sicherboot}"
     read -n1 forsicher
 
@@ -406,6 +412,7 @@ show_usage(){
     ewarnns "d, download - ${help_download_only}"
     ewarnns "n, only_install - ${help_install_only}"
     ewarnns "p, purge \t - ${help_purge_kernel}"
+    ewarnns "b, sicherboot - ${help_sicherboot}"
     echo ""
     ewarnns "ver \t - ${help_ver_ver}"
     ewarnns "latest \t - ${help_ver_latest}"
@@ -423,7 +430,7 @@ show_usage(){
 }
 
 set_locale
-if [[ "$1" != @(s|show|l|list|i|install|d|download|n|only_install|p|purge|c|sicherboot) && $1 ]]; then
+if [[ "$1" != @(s|show|l|list|i|install|d|download|n|only_install|p|purge|b|sicherboot) && $1 ]]; then
     eerror "${error_unknown_main_parameter} ${1}"
     show_usage
 elif [[ "$2" = "" && "$1" != @(s|show) && "$1" != "" && "$1" != @(l|list) ]]; then
@@ -452,7 +459,7 @@ case $1 in
     'n'|'only_install') install_kernel ;;
     'p'|'purge') 	purge_kernel ;;
     'l'|'list') 	show_installed $2 ;;
-    'c'|'sicherboot')	sicherboot_set_default_only ;;
+    'b'|'sicherboot')	sicherboot_set_default_only ;;
     *) show_usage ;;
 esac
 
