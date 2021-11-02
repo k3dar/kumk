@@ -34,6 +34,7 @@ set_locale(){
         'cs_CZ'|'cs_CZ.UTF-8')
             error_must_enter_version_as_second_parameter="ERROR: Je potřeba zadat číslo verze jako druhý parametr..."
             error_unknown_main_parameter="Neznámý hlavní parametr:"
+            error_server_or_internet_not_available="Server ${URL_PING}, nebo internetové spojení není dostupné"
             help_show_available_versions="zobrazit dostupné verze"
             help_show_installed="zobrazit nainstalované"
             help_download_and_install="stáhnout a nainstalovat"
@@ -91,6 +92,7 @@ set_locale(){
         *)
             error_must_enter_version_as_second_parameter="ERROR: Must enter version as second param..."
             error_unknown_main_parameter="ERROR: Unknown main parameter:"
+            error_server_or_internet_not_available="Server ${URL_PING} or internet connection not available"
             help_show_available_versions="show available versions"
             help_show_installed="show installed"
             help_download_and_install="download and install"
@@ -198,7 +200,17 @@ detect_arch(){
     [[ $arch_out = x86_64 ]] && ARCH="amd64" || ARCH="i386"
 }
 
+check_url_available(){
+    URL_PING="$(echo "${URL}" | sed 's#.*://##;s#/.*##')"
+    ping -c1 ${URL_PING} &>/dev/null || {
+        set_locale
+        eerror "${error_server_or_internet_not_available}"
+        exit
+    }
+}
+
 download_kernel(){
+    check_url_available
     ver_check_success="$(wget -q "${URL}/v${VER}/HEADER.html" -O- | grep "${ARCH}/build succeeded" || true)"
     [[ ${ver_check_success} ]] || {
         set_locale
@@ -353,6 +365,7 @@ purge_kernel(){
 }
 
 show_versions(){
+    check_url_available
     is_available="$(wget -q "${URL}" -O- | grep ">v5" | sed 's/.*>v5/5/;s/\/<.*//' | sort --version-sort)"
 
     last_norc="$(echo "${is_available}" | grep -v rc | tail -n1)"
