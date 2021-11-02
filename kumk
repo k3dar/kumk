@@ -4,7 +4,7 @@ set -e
 
 (( EUID )) && echo "$(basename ${0}) must be run as root (or with sudo)" && exit 1
 
-VERSION="0.6.11"
+VERSION="0.6.12"
 
 URL="https://kernel.ubuntu.com/~kernel-ppa/mainline"
 DATA=/tmp/kumk
@@ -44,7 +44,7 @@ set_locale(){
             help_sicherboot="nastavit výchozí pro sicherboot"
             help_information="Informace:"
             help_version="verze:"
-            help_ver_ver="určuje verzi pro \"i\", \"p\", \"b\", nebo filtr pro \"s\", \"l\""
+            help_ver_ver="určuje verzi pro \"i, d, n, p, b\", nebo filtr pro \"s, l\""
             help_ver_latest="automaticky rozpoznat poslední stabilní verzi pro \"i\""
             help_ver_latest_rc="automaticky rozpoznat poslední rc verzi pro  \"i\""
             help_ver_norc="použitelné pouze při \"s\" k zakázání zobrazení rc verze"
@@ -102,7 +102,7 @@ set_locale(){
             help_sicherboot="set default for sicherboot"
             help_information="Information:"
             help_version="version:"
-            help_ver_ver="specify version for \"i\", \"p\", \"b\" or filter for \"s\", \"l\""
+            help_ver_ver="specify version for \"i, d, n, p, b\" or filter for \"s, l\""
             help_ver_latest="auto detect latest stable version for \"i\""
             help_ver_latest_rc="auto detect latest rc version for \"i\""
             help_ver_norc="used only for \"s\" to disable show rc version"
@@ -417,7 +417,7 @@ sicherboot_set_default_only(){
 }
 
 show_usage(){
-    einfo "Usage: $(basename $0) [s|l|i|d|n|p] [ver|latest|latest-rc|norc] <norc>"
+    einfo "Usage: $(basename $0) [s|l|i|d|n|p|b] [ver|latest|latest-rc|norc] <norc>"
     ewarnns "s, show \t - ${help_show_available_versions}"
     ewarnns "l, list \t - ${help_show_installed}"
     echo ""
