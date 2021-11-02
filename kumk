@@ -4,7 +4,7 @@ set -e
 
 (( EUID )) && echo "$(basename ${0}) must be run as root (or with sudo)" && exit 1
 
-VERSION="0.6.10"
+VERSION="0.6.11"
 
 URL=https://kernel.ubuntu.com/~kernel-ppa/mainline/
 DATA=/tmp/kumk
@@ -34,7 +34,7 @@ set_locale(){
         'cs_CZ'|'cs_CZ.UTF-8')
             error_must_enter_version_as_second_parameter="ERROR: Je potřeba zadat číslo verze jako druhý parametr..."
             error_unknown_main_parameter="Neznámý hlavní parametr:"
-            help_show_avaiable_versions="zobrazit dostupné verze"
+            help_show_available_versions="zobrazit dostupné verze"
             help_show_installed="zobrazit nainstalované"
             help_download_and_install="stáhnout a nainstalovat"
             help_download_only="pouze stáhnout"
@@ -42,7 +42,7 @@ set_locale(){
             help_purge_kernel="odstranit jádro"
             help_information="Informace:"
             help_version="verze:"
-            help_ver_ver="určuje verzi pro \"i\", nebo filtr pro \"s\", \"l\""
+            help_ver_ver="určuje verzi pro \"i\", \"p\", nebo filtr pro \"s\", \"l\""
             help_ver_latest="automaticky rozpoznat poslední stabilní verzi pro \"i\""
             help_ver_latest_rc="automaticky rozpoznat poslední rc verzi pro  \"i\""
             help_ver_norc="použitelné pouze při \"s\" k zakázání zobrazení rc verze"
@@ -86,7 +86,7 @@ set_locale(){
         *)
             error_must_enter_version_as_second_parameter="ERROR: Must enter version as second param..."
             error_unknown_main_parameter="ERROR: Unknown main parameter:"
-            help_show_avaiable_versions="show avaiable versions"
+            help_show_available_versions="show available versions"
             help_show_installed="show installed"
             help_download_and_install="download and install"
             help_download_only="download only"
@@ -94,7 +94,7 @@ set_locale(){
             help_purge_kernel="purge kernel"
             help_information="Information:"
             help_version="version:"
-            help_ver_ver="specify version for \"i\" or filter for \"s\", \"l\""
+            help_ver_ver="specify version for \"i\", \"p\" or filter for \"s\", \"l\""
             help_ver_latest="auto detect latest stable version for \"i\""
             help_ver_latest_rc="auto detect latest rc version for \"i\""
             help_ver_norc="used only for \"s\" to disable show rc version"
@@ -179,7 +179,7 @@ eerrorsmall(){
 }
 
 eerror() {
-    echo -e "$ERRO $1${C_OFF}\n"
+    echo -e "$ERRO $1${C_OFF}"
     if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
 }
 
@@ -321,13 +321,13 @@ purge_kernel(){
     done
     rmdir ${DST}/scripts ${DST}/tools/bpf ${DST}/tools ${DST} 2>/dev/null || true
     
-    [[ ${purge_packages} ]] && apt-get purge ${purge_packages} >/dev/null || { eerror "${package_ver_not_found}"; exit; }
+    [[ ${purge_packages} ]] && apt-get purge ${purge_packages} || { eerror "${package_ver_not_found}"; exit; }
 }
 
 show_versions(){
-    is_avaiable="$(wget -q "https://kernel.ubuntu.com/~kernel-ppa/mainline" -O- | grep ">v5" | sed 's/.*>v5/5/;s/\/<.*//' | sort --version-sort)"
-    [[ $2 = norc || $1 = norc ]] && is_avaiable="$(echo "${is_avaiable}" | grep -v rc)"
-    [[ $1 ]] && echo "${is_avaiable}" | grep ^${1} ||  echo "${is_avaiable}"
+    is_available="$(wget -q "https://kernel.ubuntu.com/~kernel-ppa/mainline" -O- | grep ">v5" | sed 's/.*>v5/5/;s/\/<.*//' | sort --version-sort)"
+    [[ $2 = norc || $1 = norc ]] && is_available="$(echo "${is_available}" | grep -v rc)"
+    [[ $1 ]] && echo "${is_available}" | grep ^${1} ||  echo "${is_available}"
     exit 0
 }
 
@@ -363,8 +363,8 @@ sicherboot_set_default_only(){
 }
 
 show_usage(){
-    einfo "Usage: $(basename $0) [s|l|i|n|p] [ver|latest|latest-rc|norc] <norc>"
-    ewarnns "s, show \t - ${help_show_avaiable_versions}"
+    einfo "Usage: $(basename $0) [s|l|i|d|n|p] [ver|latest|latest-rc|norc] <norc>"
+    ewarnns "s, show \t - ${help_show_available_versions}"
     ewarnns "l, list \t - ${help_show_installed}"
     echo ""
     ewarnns "i, install\t - ${help_download_and_install}"
@@ -388,7 +388,7 @@ show_usage(){
 }
 
 set_locale
-if [[ "$1" != @(s|show|l|list|i|install|d|download|n|only_install|p|purge|c|sicherboot) ]]; then
+if [[ "$1" != @(s|show|l|list|i|install|d|download|n|only_install|p|purge|c|sicherboot) && $1 ]]; then
     eerror "${error_unknown_main_parameter} ${1}"
     show_usage
 elif [[ "$2" = "" && "$1" != @(s|show) && "$1" != "" && "$1" != @(l|list) ]]; then
