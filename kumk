@@ -311,8 +311,8 @@ do_get_bin(){
 }
 
 do_copy_bin(){
-#    DST="/usr/src/linux-headers-${VER}"
-    VER_LONG=$(ls -d /usr/src/linux-headers-${VER}*${MODE} | sed 's/.*headers-//')
+    VER_LONG=$(ls -d /usr/src/linux-headers-${VER/-rc/*rc}*${MODE} | sed 's/.*headers-//')
+    set_locale
     DST="/usr/src/linux-headers-${VER_LONG}"
     ewarn "${replacing_binaries_in} ${DST}..."
     for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool; do
@@ -334,8 +334,8 @@ do_config_pkg(){
 }
 
 purge_kernel(){
-    VER_LONG=$(ls -d /usr/src/linux-headers-${VER}*${MODE} 2>/dev/null | sed 's/.*headers-//')
-    purge_packages="$(dpkg -l | awk '{print $2}' | grep -e linux-image -e linux-modules -e linux-headers | grep ${VER})" || true
+    VER_LONG=$(ls -d /usr/src/linux-headers-${VER/-rc/*rc}*${MODE} 2>/dev/null | sed 's/.*headers-//')
+    purge_packages="$(dpkg -l | awk '{print $2}' | grep -e linux-image -e linux-modules -e linux-headers | grep ${VER_LONG} 2>/dev/null)" || true
     ### TODO check if ^^^ match only one VER !!! 
     ### TODO ^^ if purge system/repository last kernel, also remove meta's: linux-generic-hwe-20.04* linux-headers-generic-hwe-20.04* linux-image-generic-hwe-20.04*
     ###		not possible without, because this is calc by apt dependencies
@@ -378,17 +378,17 @@ show_installed(){
 }
 
 sicherboot_set_default(){
-    ls /boot/efi/loader/entries/*${VER}* &>/dev/null || { eerror "${sicherboot_kernel_not_found}"; exit; }
+    ls /boot/efi/loader/entries/*${VER/-rc/*rc}* &>/dev/null || { eerror "${sicherboot_kernel_not_found}"; exit; }
     einfon "${set_ver_as_default_for_sicherboot}"
     read -n1 forsicher
 
     if [[ ${forsicher} = [y,Y,a,A] ]]; then
         ewarny "${detect_new_id_via_bootctl}"
 
-        new_default="$(bootctl list 2>/dev/null | grep id: | grep ${VER} | sed 's/.*id: //')"
+        new_default="$(bootctl list 2>/dev/null | grep id: | grep ${VER/-rc/.*.rc} | sed 's/.*id: //')"
 
         ### maybe because (on my t430s) "bootctl" show "WARNING: The boot loader reports different ESP UUID then detected!" ??
-        [[ ${new_default} ]] || { ewarn "${previous_detect_failed_try_default_efi_dir}"; new_default="$(basename $(ls /boot/efi/loader/entries/*${VER}*))"; }
+        [[ ${new_default} ]] || { ewarn "${previous_detect_failed_try_default_efi_dir}"; new_default="$(basename $(ls /boot/efi/loader/entries/*${VER/-rc/*rc}*))"; }
 
         [[ ${new_default} ]] || { eerrorsmall "${not_detected_new_id_skipping_setting}"; return; }
         new_default_count="$(echo "${new_default}" | wc -l)"
