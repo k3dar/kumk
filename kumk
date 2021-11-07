@@ -342,7 +342,7 @@ do_config_pkg(){
     else
         which dkms >/dev/null && do_dkms ${VER_LONG}
     fi
-    sed "/Depends: linux-headers-${VER_LONG/-generic}, libc6/s/libc6 (>= 2...)/libc6 (>= 2.31)/" -i /var/lib/dpkg/status
+    sed "/Depends: linux-headers-${VER_LONG/-generic}, libc6/s/libc6 (>= 2...)/libc6 (>= 2.27)/" -i /var/lib/dpkg/status
 }
 
 purge_kernel(){
