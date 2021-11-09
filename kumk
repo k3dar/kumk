@@ -251,7 +251,7 @@ install_kernel(){
     einfon "${install_ver_yes_no}"
     read -n1 answer; echo ""
     if [[ "${answer}" = [y,Y,a,A] ]]; then 
-        libc6_ver="$(dpkg -l libc6 2>/dev/null | grep libc6 | grep amd64 | awk '{print $3}' | sed 's/-.*//')"
+        libc6_ver="$(dpkg -l libc6 2>/dev/null | grep libc6 | head -n1 | awk '{print $3}' | sed 's/-.*//')"
         libc6_req="$(dpkg-deb -f ${DATA}/${VER}/linux-header*${MODE}*.deb Depends | sed 's/.*libc6 (>= //;s/).*//')"
         set_locale
 
@@ -342,7 +342,7 @@ do_config_pkg(){
     else
         which dkms >/dev/null && do_dkms ${VER_LONG}
     fi
-    sed "/Depends: linux-headers-${VER_LONG/-generic}, libc6/s/libc6 (>= 2...)/libc6 (>= 2.31)/" -i /var/lib/dpkg/status
+    sed "/Depends: linux-headers-${VER_LONG/-generic}, libc6/s/libc6 (>= 2...)/libc6 (>= ${libc6_ver})/" -i /var/lib/dpkg/status
 }
 
 purge_kernel(){
