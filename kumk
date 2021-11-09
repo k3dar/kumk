@@ -347,7 +347,7 @@ do_config_pkg(){
 
 purge_kernel(){
     VER_LONG=$(ls -d /usr/src/linux-headers-${VER/-rc/*rc}*${MODE} 2>/dev/null | sed 's/.*headers-//')
-    purge_packages="$(dpkg -l | awk '{print $2}' | grep -e linux-image -e linux-modules -e linux-headers | grep ${VER_LONG} 2>/dev/null)" || true
+    purge_packages="$(dpkg -l | awk '{print $2}' | grep -e linux-image.*.${VER_LONG:-dummyvar} -e linux-modules-${VER_LONG:-dummyvar} -e linux-headers-${VER_LONG:-dummyvar} -e linux-headers-${VER/-rc/.*.rc})" || true
     ### TODO check if ^^^ match only one VER !!! 
     ### TODO ^^ if purge system/repository last kernel, also remove meta's: linux-generic-hwe-20.04* linux-headers-generic-hwe-20.04* linux-image-generic-hwe-20.04*
     ###		not possible without, because this is calc by apt dependencies
