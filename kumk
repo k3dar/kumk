@@ -308,14 +308,14 @@ do_get_bin(){
     file="linux-headers-${SRC_VER}_5.11.16-051116.202104211235_amd64.deb"
     set_locale
 
-    ewarn "${downloading_package_file_for_extracting_tools} fixdep, modpost, objtool..."
+    ewarn "${downloading_package_file_for_extracting_tools} fixdep, modpost, objtool, genksyms..."
     wget -q https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.11.16/amd64/${file} -O "${TMP}/${file}"
 
     ewarn "${unpacking_files}"
     ( ar --help | grep -q -m1 '\--output' ) && output="--output ${TMP}" || cd ${TMP}
     ar x ${output} "${TMP}/${file}"
     tar xf "${TMP}/data.tar.xz" --directory "${TMP}"
-    for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool; do
+    for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool scripts/genksyms/genksyms; do
         mkdir -p ${BIN}/${i%\/*}
         ewarn "${copy_to} ${BIN}/${i}..."
         cp -a  ${TMP}/usr/src/linux-headers-${SRC_VER}/${i} ${BIN}/${i}
@@ -327,7 +327,7 @@ do_copy_bin(){
     set_locale
     DST="/usr/src/linux-headers-${VER_LONG}"
     ewarn "${replacing_binaries_in} ${DST}..."
-    for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool; do
+    for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool scripts/genksyms/genksyms; do
         [[ -f ${BIN}/${i} ]] || do_get_bin
         [[ -f ${DST}/${i}.orig ]] || { ewarn "${backup_previous_file_to} ${DST}/${i}.orig"; cp -a ${DST}/${i} ${DST}/${i}.orig; }
     done
@@ -355,7 +355,7 @@ purge_kernel(){
     [[ ${running_kernel} = ${VER_LONG} ]] && { eerror "${running_kernel} ${is_running_kernel_exiting}"; exit; }
 
     DST="/usr/src/linux-headers-${VER_LONG}"
-    for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool; do
+    for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool scripts/genksyms/genksyms; do
         rmdir ${DST}/$(dirname ${i}) 2>/dev/null || true
         [[ -f ${DST}/${i}.orig ]] && { ewarn "${removing_backup_of_previous_file} ${DST}/${i}.orig"; rm -f ${DST}/${i}.orig; }
     done
