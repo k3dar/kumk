@@ -4,7 +4,7 @@ set -e
 
 (( EUID )) && echo "$(basename ${0}) must be run as root (or with sudo)" && exit 1
 
-VERSION="0.6.12"
+VERSION="0.6.13"
 
 URL="https://kernel.ubuntu.com/~kernel-ppa/mainline"
 DATA=/tmp/kumk
@@ -249,7 +249,8 @@ download_kernel(){
         eerror "${this_version_have_failed_build}"
         exit
     else
-        debs=( $(grep ${ARCH} -A7 -m1 ${header} | sed 's/deb">.*/deb/g;s/.*href="//' | grep -v BUILD | grep -e all -e ${MODE}) )
+        header_onever="$(grep ${ARCH}/linux.*_all.deb ${header} | tail -n1 | sed "s/_all.deb.*//;s/.*${VER}.*\.//")"
+        debs=( $(grep ${ARCH}/linux ${header} | sed 's/deb">.*/deb/g;s/.*href="//' | grep -v BUILD | grep -e all -e ${MODE} | grep ${header_onever}) )
         einfo "${downloading_ver}"
         [[ $debs ]] || { eerror "${packages_for_ver_not_found_exiting}"; exit; }
         for deb in ${debs[@]}; do
