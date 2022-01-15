@@ -36,4 +36,6 @@ kumk [s|l|i|d|n|p|b] [ver|latest|latest-rc|norc] <norc>
   latest    - auto detect latest stable version for "i"
   latest-rc - auto detect latest rc version for "i"
   norc      - used only for "s" to disable show rc version
+
+  u, upgrade - upgrade kumk from github
 ```

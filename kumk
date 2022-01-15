@@ -51,6 +51,7 @@ set_locale(){
             help_running_os="Běžící OS:"
             help_running_kernel="Běžící Jádro:"
             help_free_on="Volno v"
+            help_upgrade="aktualizovat kumk z github"
 
             this_version_have_failed_build="Tato verze obsahuje neůspěšný build... Končím..."
             kernel_is_not_ready_yet="(zatím v přípravě)"
@@ -88,6 +89,12 @@ set_locale(){
             sicherboot_not_found_exiting="Sicherboot nenalezen... Končím..."
             sicherboot_kernel_not_found="Nenalezeno jádro ${VER} k nastavení pro sicherboot výchozí... Končím..."
             finish="Dokončeno..."
+            check_for_kumk_new_version="Kontrola dostupnosti nové verze kumk..."
+            no_new_version="nová verze nenalezena..."
+            found_new_version_upgrade_me_ask="nalezena nová verze, mám se sám aktualizovat? [a/N] "
+            upgrade_skipped="aktualizace přeskočena..."
+            upgrading_myself="aktualizuji se..."
+            problem_with_check_new_version="problém při zjišťování nové verze"
         ;;
         *)
             error_must_enter_version_as_second_parameter="ERROR: Must enter version as second param..."
@@ -109,6 +116,7 @@ set_locale(){
             help_running_os="Running OS:"
             help_running_kernel="Running Kernel:"
             help_free_on="Free on"
+            help_upgrade="upgrade kumk from github"
 
             this_version_have_failed_build="This version have failed build. Exiting..."
             kernel_is_not_ready_yet="(not ready yet)"
@@ -146,6 +154,12 @@ set_locale(){
             sicherboot_not_found_exiting="Sicherboot not found... Exiting..."
             sicherboot_kernel_not_found="Not found kernel ${VER} for sicherboot default setting... Exiting..."
             finish="Finish..."
+            check_for_kumk_new_version="Checking kumk new version..."
+            no_new_version="new version not found..."
+            found_new_version_upgrade_me_ask="found new version, should I update myself? [y/N] "
+            upgrade_skipped="upgrade skipped..."
+            upgrading_myself="upgrading myself..."
+            problem_with_check_new_version="problem when checking for a new version"
         ;;
     esac
 }
@@ -417,7 +431,7 @@ sicherboot_set_default_only(){
 }
 
 show_usage(){
-    einfo "Usage: $(basename $0) [s|l|i|d|n|p|b] [ver|latest|latest-rc|norc] <norc>"
+    einfo "Usage: $(basename $0) [s|l|i|d|n|p|b|u] [ver|latest|latest-rc|norc] <norc>"
     ewarnns "s, show \t - ${help_show_available_versions}"
     ewarnns "l, list \t - ${help_show_installed}"
     echo ""
@@ -431,6 +445,8 @@ show_usage(){
     ewarnns "latest \t - ${help_ver_latest}"
     ewarnns "latest-rc \t - ${help_ver_latest_rc}"
     ewarnns "norc \t - ${help_ver_norc}"
+    echo ""
+    ewarnns "u, upgrade - ${help_upgrade}"
 
     einfo "${help_information}"
     ewarnns "$(basename $0) ${help_version} ${VERSION}"
@@ -442,11 +458,42 @@ show_usage(){
     exit
 }
 
+kumk_upgrade(){
+    kumk_url="https://raw.githubusercontent.com/k3dar/kumk/main/kumk"
+    kumk_path="$(dirname $0)"
+    kumk_new="${kumk_path}/kumk.new"
+    einfo "${check_for_kumk_new_version}"
+    wget -q  ${kumk_url} -O "${kumk_new}" && {
+        diff "${kumk_new}" "${0}" &>/dev/null && {
+            ewarn "${no_new_version}"
+            rm -f "${kumk_new:-dummy}"
+            exit
+        } || {
+            ewarnn "${found_new_version_upgrade_me_ask}"
+            read -n1 answer
+
+            [[ "${answer}" = [y,Y,a,A] ]] && {
+                echo ""
+                ewarn "${upgrading_myself}"
+                chmod a+x "${kumk_new}"
+                mv "${kumk_new}" "${0}"
+                exit
+            } || {
+                ewarn "${upgrade_skipped}"
+                exit
+            }
+        }
+    } || {
+        eerror "${problem_with_check_new_version}"
+    }
+}
+
 set_locale
-if [[ "$1" != @(s|show|l|list|i|install|d|download|n|only_install|p|purge|b|sicherboot) && $1 ]]; then
+
+if [[ "$1" != @(s|show|l|list|i|install|d|download|n|only_install|p|purge|b|sicherboot|u|upgrade) && $1 ]]; then
     eerror "${error_unknown_main_parameter} ${1}"
     show_usage
-elif [[ "$2" = "" && "$1" != @(s|show) && "$1" != "" && "$1" != @(l|list) ]]; then
+elif [[ "$2" = "" && "$1" != "" && "$1" != @(s|show|l|list|u|upgrade) ]]; then
     eerror "${error_must_enter_version_as_second_parameter}"
     exit
 elif [[ "$2" = "latest" && "$1" != @(s|show) ]]; then
@@ -473,6 +520,7 @@ case $1 in
     'p'|'purge') 	purge_kernel ;;
     'l'|'list') 	show_installed $2 ;;
     'b'|'sicherboot')	sicherboot_set_default_only ;;
+    'u'|'upgrade')	kumk_upgrade ;;
     *) show_usage ;;
 esac
 
