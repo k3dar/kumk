@@ -75,7 +75,8 @@ set_locale(){
             copy_to="Kopíruji do"
             replacing_binaries_in="nahrazuji binárky v"
             backup_previous_file_to="zálohuji původní soubor do"
-            configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version="konfiguruji balíček linux-headers-${VER_LONG} s ingorováním závislostí na verzi libc6..."
+            configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version="konfiguruji balíček linux-headers-${VER_LONG} s ingorováním závislostí na verzi libc6${ignore_libssl3}..."
+            workarounding_depends_on_unavailable_libssl3_faking_to_libssl1="Obcházím závislost na nedostupném libssl3 falšováním na libssl1.1"
             removing_backup_of_previous_file="odstranuji zálohu původního souboru"
             package_ver_not_found="Žádný balíček verze ${VER} nebyl nalezen..."
             running="běžící"
@@ -140,7 +141,8 @@ set_locale(){
             copy_to="Copy to"
             replacing_binaries_in="replacing binaries in"
             backup_previous_file_to="backup previous file to"
-            configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version="configuring package linux-headers-${VER_LONG} with ignoring depends on libc6 version..."
+            configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version="configuring package linux-headers-${VER_LONG} with ignoring depends on libc6${ignore_libssl3} version..."
+            workarounding_depends_on_unavailable_libssl3_faking_to_libssl1="Workarounding depends on unavailable libssl3 faking to libssl1.1"
             removing_backup_of_previous_file="removing backup of previous file"
             package_ver_not_found="Package version ${VER} not found..."
             running="running"
@@ -279,11 +281,11 @@ install_kernel(){
                 ewarn "${installing_package} $(basename $(ls ${DATA}/${VER}/linux-header*all*.deb))..."
                 dpkg -i ${DATA}/${VER}/linux-header*all*.deb >/dev/null
                 ewarn "${installing_only_unpacking_package} $(basename $(ls ${DATA}/${VER}/linux-header*${MODE}*.deb))..."
-                dpkg --unpack ${DATA}/${VER}/linux-header*${MODE}*.deb #DEBUGTED >/dev/null
+                dpkg --unpack ${DATA}/${VER}/linux-header*${MODE}*.deb >/dev/null
                 do_copy_bin
                 do_config_pkg
                 ewarn "${installing_rest} $(basename $(ls ${DATA}/${VER}/linux-image*.deb)) ${and} $(basename $(ls ${DATA}/${VER}/linux-module*.deb))"
-                dpkg -i ${DATA}/${VER}/linux-image*.deb ${DATA}/${VER}/linux-module*.deb #DEBUGTED >/dev/null
+                dpkg -i ${DATA}/${VER}/linux-image*.deb ${DATA}/${VER}/linux-module*.deb >/dev/null
             else
                 ewarn "${installing_kernel_version_le_51116_install_normal}"
                 dpkg -i ${DATA}/${VER}/*.deb >/dev/null
@@ -349,14 +351,24 @@ do_copy_bin(){
 }
 
 do_config_pkg(){
+    dpkg --compare-versions "${VER}" "ge" "5.15.7" && {
+        (dpkg -l libssl3 2>/dev/null | grep -q '^ii \+libssl3') || ignore_libssl3=",libssl3"
+    }
+
     if (dpkg -l | grep linux-headers-${VER_LONG} | grep -q ^iU); then
         set_locale
         ewarn "${configuring_package_linux_header_ver_long_with_ignoring_depends_on_libc6_version}"
-        dpkg --configure --ignore-depends=libc6 linux-headers-${VER_LONG} >/dev/null
+        dpkg --configure --ignore-depends=libc6${ignore_libssl3} linux-headers-${VER_LONG} >/dev/null
     else
         which dkms >/dev/null && do_dkms ${VER_LONG}
     fi
+
     sed "/Depends: linux-headers-${VER_LONG/-generic}, libc6/s/libc6 (>= 2...)/libc6 (>= ${libc6_ver})/" -i /var/lib/dpkg/status
+
+    [[ ${ignore_libssl3} ]] && {
+        ewarn "${workarounding_depends_on_unavailable_libssl3_faking_to_libssl1}"
+        sed "/Depends: linux-headers-${VER_LONG/-generic}.*libssl3/s/libssl3[^)]*)/libssl1.1 (>= 1.1.0)/" -i /var/lib/dpkg/status
+    } || true
 }
 
 purge_kernel(){
@@ -374,7 +386,7 @@ purge_kernel(){
         [[ -f ${DST}/${i}.orig ]] && { ewarn "${removing_backup_of_previous_file} ${DST}/${i}.orig"; rm -f ${DST}/${i}.orig; }
     done
     rmdir ${DST}/scripts ${DST}/tools/bpf ${DST}/tools ${DST} 2>/dev/null || true
-    
+
     [[ ${purge_packages} ]] && apt-get purge ${purge_packages} || { eerror "${package_ver_not_found}"; exit; }
 }
 

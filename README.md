@@ -8,6 +8,9 @@ Simple CLI tool for install ([Ubuntu Mainline Kernel](https://wiki.ubuntu.com/Ke
 this is about extracting binaries from last(5.11.16) package supporting libc6 2.31 and replace it in installed kernel  
 with faking minimal libc6 version for installed package in dpkg status file...
 
+- when installing kernel >=5.15.7 on system without libssl3 package,
+workarounding depends on unavailable libssl3 faking to libssl1.1
+
 - if Sicherboot is detected, after installing kernel he ask if set it as default...
 
 ## installing
