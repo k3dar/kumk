@@ -8,7 +8,7 @@ VERSION="0.6.13"
 
 URL="https://kernel.ubuntu.com/~kernel-ppa/mainline"
 DATA=/tmp/kumk
-[[ ! $2 = *lowlattency* ]] && MODE="generic" ||  MODE="lowlattency"
+[[ ! $2 = *lowlatency* ]] && MODE="generic" ||  MODE="lowlatency"
 TMP="${DATA}/tmp"
 BIN="${DATA}/bin"
 
@@ -234,6 +234,7 @@ download_kernel(){
         read -n1 answer; echo ""
         [[ "${answer}" = [y,Y,a,A] ]] && {
             VER="${VER_PREV}"
+            VER0="${VER0_PREV}"
             set_locale
         } || {
             ewarn "${install_canceled}"
@@ -249,7 +250,7 @@ download_kernel(){
         eerror "${this_version_have_failed_build}"
         exit
     else
-        header_onever="$(grep ${ARCH}/linux.*_all.deb ${header} | tail -n1 | sed "s/_all.deb.*//;s/.*${VER}.*\.//")"
+        header_onever="$(grep ${ARCH}/linux.*_all.deb ${header} | tail -n1 | sed "s/_all.deb.*//;s/.*${VER0}.*\.//")"
         debs=( $(grep ${ARCH}/linux ${header} | sed 's/deb">.*/deb/g;s/.*href="//' | grep -v BUILD | grep -e all -e ${MODE} | grep ${header_onever}) )
         einfo "${downloading_ver}"
         [[ $debs ]] || { eerror "${packages_for_ver_not_found_exiting}"; exit; }
@@ -273,11 +274,11 @@ install_kernel(){
         set_locale
 
         if [[ ${libc6_ver//./,} -ge ${libc6_req//./,} ]]; then
-            (dpkg --compare-versions "${VER}" "gt" "5.11.16") && ewarn "${in_system_is_installed_libc_ge_req_installing_normal}"
+            (dpkg --compare-versions "${VER0}" "gt" "5.11.16") && ewarn "${in_system_is_installed_libc_ge_req_installing_normal}"
             dpkg -i ${DATA}/${VER}/*.deb >/dev/null
         else
             check_depends
-            if (dpkg --compare-versions "${VER}" "gt" "5.11.16"); then
+            if (dpkg --compare-versions "${VER0}" "gt" "5.11.16"); then
                 ewarn "${installing_kernel_version_gt_51116_and_libc6_is_lt_req_install_via_workaround}"
                 ewarn "${installing_package} $(basename $(ls ${DATA}/${VER}/linux-header*all*.deb))..."
                 dpkg -i ${DATA}/${VER}/linux-header*all*.deb >/dev/null
@@ -340,7 +341,7 @@ do_get_bin(){
 }
 
 do_copy_bin(){
-    VER_LONG=$(ls -d /usr/src/linux-headers-${VER/-rc/*rc}*${MODE} | sed 's/.*headers-//')
+    VER_LONG=$(ls -d /usr/src/linux-headers-${VER0/-rc/*rc}*${MODE} | sed 's/.*headers-//')
     set_locale
     DST="/usr/src/linux-headers-${VER_LONG}"
     ewarn "${replacing_binaries_in} ${DST}..."
@@ -352,7 +353,7 @@ do_copy_bin(){
 }
 
 do_config_pkg(){
-    dpkg --compare-versions "${VER}" "ge" "5.15.7" && {
+    dpkg --compare-versions "${VER0}" "ge" "5.15.7" && {
         (dpkg -l libssl3 2>/dev/null | grep -q '^ii \+libssl3') || ignore_libssl3=",libssl3"
     }
 
@@ -373,8 +374,8 @@ do_config_pkg(){
 }
 
 purge_kernel(){
-    VER_LONG=$(ls -d /usr/src/linux-headers-${VER/-rc/*rc}*${MODE} 2>/dev/null | sed 's/.*headers-//')
-    purge_packages="$(dpkg -l | awk '{print $2}' | grep -e linux-image.*.${VER_LONG:-dummyvar} -e linux-modules-${VER_LONG:-dummyvar} -e linux-headers-${VER_LONG:-dummyvar} -e linux-headers-${VER/-rc/.*.rc})" || true
+    VER_LONG=$(ls -d /usr/src/linux-headers-${VER0/-rc/*rc}*${MODE} 2>/dev/null | sed 's/.*headers-//')
+    purge_packages="$(dpkg -l | awk '{print $2}' | grep -e linux-image.*.${VER_LONG:-dummyvar} -e linux-modules-${VER_LONG:-dummyvar} -e linux-headers-${VER_LONG:-dummyvar} -e linux-headers-${VER0/-rc/.*.rc})" || true
     ### TODO check if ^^^ match only one VER !!! 
     ### TODO ^^ if purge system/repository last kernel, also remove meta's: linux-generic-hwe-20.04* linux-headers-generic-hwe-20.04* linux-image-generic-hwe-20.04*
     ###		not possible without, because this is calc by apt dependencies
@@ -418,17 +419,17 @@ show_installed(){
 }
 
 sicherboot_set_default(){
-    ls /boot/efi/loader/entries/*${VER/-rc/*rc}* &>/dev/null || { eerror "${sicherboot_kernel_not_found}"; exit; }
+    ls /boot/efi/loader/entries/*${VER0/-rc/*rc}* &>/dev/null || { eerror "${sicherboot_kernel_not_found}"; exit; }
     einfon "${set_ver_as_default_for_sicherboot}"
     read -n1 forsicher
 
     if [[ ${forsicher} = [y,Y,a,A] ]]; then
         ewarny "${detect_new_id_via_bootctl}"
 
-        new_default="$(bootctl list 2>/dev/null | grep id: | grep ${VER/-rc/.*.rc} | sed 's/.*id: //')"
+        new_default="$(bootctl list 2>/dev/null | grep id: | grep ${VER0/-rc/.*.rc} | sed 's/.*id: //')"
 
         ### maybe because (on my t430s) "bootctl" show "WARNING: The boot loader reports different ESP UUID then detected!" ??
-        [[ ${new_default} ]] || { ewarn "${previous_detect_failed_try_default_efi_dir}"; new_default="$(basename $(ls /boot/efi/loader/entries/*${VER/-rc/*rc}*))"; }
+        [[ ${new_default} ]] || { ewarn "${previous_detect_failed_try_default_efi_dir}"; new_default="$(basename $(ls /boot/efi/loader/entries/*${VER0/-rc/*rc}*))"; }
 
         [[ ${new_default} ]] || { eerrorsmall "${not_detected_new_id_skipping_setting}"; return; }
         new_default_count="$(echo "${new_default}" | wc -l)"
@@ -503,6 +504,11 @@ kumk_upgrade(){
 
 set_locale
 
+# VER0 and VER0_PREV fix the issue that .0 patch versions do not have the .0 suffix at some places; so VER is e.g. 5.16
+# while VER0 will be 5.16.0. Use VER0 in all places where you add asterisks after the version number, so that you only
+# match a single kernel version. The RC versions are named vX.Y-rcZ, so they contain 1 period and 1 dash;
+# non-rc versions contain 2 periods. That is why the following code counts whether there are two characters that are
+# either period or dash - each full kernel version will have exactly two of these.
 if [[ "$1" != @(s|show|l|list|i|install|d|download|n|only_install|p|purge|b|sicherboot|u|upgrade) && $1 ]]; then
     eerror "${error_unknown_main_parameter} ${1}"
     show_usage
@@ -512,13 +518,23 @@ elif [[ "$2" = "" && "$1" != "" && "$1" != @(s|show|l|list|u|upgrade) ]]; then
 elif [[ "$2" = "latest" && "$1" != @(s|show) ]]; then
     tmp_ver="$(show_versions | grep -v rc | tail -n2 | sed 's/^v//;s/ (.*//')"
     VER="$(echo "${tmp_ver}" | tail -n1)"
+    VER0="${VER}"
+    [[ "$(echo -n "${VER//[^.-]}" | wc -c )" != "2" ]] && VER0="${VER0}.0"
     VER_PREV="$(echo "${tmp_ver}" | head -n1)"
+    VER0_PREV="${VER_PREV}"
+    [[ "$(echo -n "${VER_PREV//[^.-]}" | wc -c )" != "2" ]] && VER0_PREV="${VER0_PREV}.0"
 elif [[ "$2" = "latest-rc" && "$1" != @(s|show) ]]; then
     tmp_ver="$(show_versions | tail -n2 | sed 's/^v//;s/ (.*//')"
     VER="$(echo "${tmp_ver}" | tail -n1)"
+    VER0="${VER}"
+    [[ "$(echo -n "${VER//[^.-]}" | wc -c )" != "2" ]] && VER0="${VER0}.0"
     VER_PREV="$(echo "${tmp_ver}" | head -n1)"
+    VER0_PREV="${VER_PREV}"
+    [[ "$(echo -n "${VER_PREV//[^.-]}" | wc -c )" != "2" ]] && VER0_PREV="${VER0_PREV}.0"
 elif [[ "$1" != @(s|show) ]]; then
-    VER="$(echo ${2} | sed 's/-generic//;s/-lowlattency//;s/*//g')"
+    VER="$(echo ${2} | sed 's/-generic//;s/-lowlatency//;s/*//g')"
+    VER0="${VER}"
+    [[ "$(echo -n "${VER//[^.-]}" | wc -c )" != "2" ]] && VER0="${VER0}.0"
 fi
 set_locale
 
