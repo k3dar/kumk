@@ -185,6 +185,16 @@ ewarn() {
     if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
 }
 
+ewarnt() {
+    echo -e "   \t$WARN $1${C_OFF}"
+    if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
+}
+
+ewarntt() {
+    echo -e "   \t\t$WARN $1${C_OFF}"
+    if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
+}
+
 ewarnn() {
     echo -n -e "   $WARN $1${C_OFF}"
     if [ "$2" != "" ]; then echo "$1" >>$OUT/$2; fi
@@ -286,7 +296,9 @@ install_kernel(){
                 dpkg --unpack ${DATA}/${VER}/linux-header*${MODE}*.deb >/dev/null
                 do_copy_bin
                 do_config_pkg
-                ewarn "${installing_rest} $(basename $(ls ${DATA}/${VER}/linux-image*.deb)) ${and} $(basename $(ls ${DATA}/${VER}/linux-module*.deb))"
+                ewarn "${installing_rest}"
+                ewarnt "$(basename $(ls ${DATA}/${VER}/linux-image*.deb))"
+                ewarnt "$(basename $(ls ${DATA}/${VER}/linux-module*.deb))"
                 dpkg -i ${DATA}/${VER}/linux-image*.deb ${DATA}/${VER}/linux-module*.deb >/dev/null
             else
                 ewarn "${installing_kernel_version_le_51116_install_normal}"
@@ -326,16 +338,18 @@ do_get_bin(){
     file="linux-headers-${SRC_VER}_5.11.16-051116.202104211235_amd64.deb"
     set_locale
 
-    ewarn "${downloading_package_file_for_extracting_tools} fixdep, modpost, objtool, genksyms, sign-file..."
+    ewarnt "${downloading_package_file_for_extracting_tools}"
+    ewarntt "fixdep, modpost, objtool, genksyms, sign-file..."
     wget -q https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.11.16/amd64/${file} -O "${TMP}/${file}"
 
-    ewarn "${unpacking_files}"
+    ewarnt "${unpacking_files}"
     ( ar --help | grep -q -m1 '\--output' ) && output="--output ${TMP}" || cd ${TMP}
     ar x ${output} "${TMP}/${file}"
     tar xf "${TMP}/data.tar.xz" --directory "${TMP}"
+    ewarnt "${copy_to} ${BIN}:"
     for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool scripts/genksyms/genksyms scripts/sign-file; do
         mkdir -p ${BIN}/${i%\/*}
-        ewarn "${copy_to} ${BIN}/${i}..."
+        ewarntt "${i}..."
         cp -a  ${TMP}/usr/src/linux-headers-${SRC_VER}/${i} ${BIN}/${i}
     done
 }
@@ -347,7 +361,11 @@ do_copy_bin(){
     ewarn "${replacing_binaries_in} ${DST}..."
     for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool scripts/genksyms/genksyms scripts/sign-file; do
         [[ -f ${BIN}/${i} ]] || do_get_bin
-        [[ -f ${DST}/${i}.orig ]] || { ewarn "${backup_previous_file_to} ${DST}/${i}.orig"; cp -a ${DST}/${i} ${DST}/${i}.orig; }
+        [[ -f ${DST}/${i}.orig ]] || { 
+            [[ ${is_show_backup_previous_file_to} ]] || { ewarnt "${backup_previous_file_to} ${DST}:"; is_show_backup_previous_file_to="YES"; }
+            ewarntt "${i}.orig"
+            cp -a ${DST}/${i} ${DST}/${i}.orig
+        }
     done
     cp -a "${BIN}/"* ${DST}
 }
@@ -368,7 +386,7 @@ do_config_pkg(){
     sed "/Depends: linux-headers-${VER_LONG/-generic}, libc6/s/libc6 (>= 2...)/libc6 (>= ${libc6_ver})/" -i /var/lib/dpkg/status
 
     [[ ${ignore_libssl3} ]] && {
-        ewarn "${workarounding_depends_on_unavailable_libssl3_faking_to_libssl1}"
+        ewarnt "${workarounding_depends_on_unavailable_libssl3_faking_to_libssl1}"
         sed "/Depends: linux-headers-${VER_LONG/-generic}.*libssl3/s/libssl3[^)]*)/libssl1.1 (>= 1.1.0)/" -i /var/lib/dpkg/status
     } || true
 }
