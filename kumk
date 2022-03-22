@@ -4,11 +4,11 @@ set -e
 
 (( EUID )) && echo "$(basename ${0}) must be run as root (or with sudo)" && exit 1
 
-VERSION="0.6.13"
+VERSION="0.6.14"
 
 URL="https://kernel.ubuntu.com/~kernel-ppa/mainline"
 DATA=/tmp/kumk
-[[ ! $2 = *lowlattency* ]] && MODE="generic" ||  MODE="lowlattency"
+[[ ! $2 = *lowlatency* ]] && MODE="generic" ||  MODE="lowlatency"
 TMP="${DATA}/tmp"
 BIN="${DATA}/bin"
 
@@ -227,13 +227,14 @@ check_url_available(){
 
 download_kernel(){
     check_url_available
-    ver_check_success="$(wget -q "${URL}/v${VER}/HEADER.html" -O- | grep "${ARCH}/build succeeded" || true)"
+    ver_check_success="$(wget -q "${URL}/v${VER_NOZER:-${VER}}/HEADER.html" -O- | grep "${ARCH}/build succeeded" || true)"
     [[ ${ver_check_success} ]] || {
         set_locale
         ewarnn "${this_version_not_ready_yet_switch_to_previous_yes_no}"
         read -n1 answer; echo ""
         [[ "${answer}" = [y,Y,a,A] ]] && {
             VER="${VER_PREV}"
+            VER_NOZER="${VER_PREV_NOZER}"
             set_locale
         } || {
             ewarn "${install_canceled}"
@@ -243,7 +244,7 @@ download_kernel(){
 
     mkdir -p ${TMP}
     header="${TMP}/${VER}-HEADER.html"
-    wget -q "${URL}/v${VER}/HEADER.html" -O ${header}
+    wget -q "${URL}/v${VER_NOZER:-${VER}}/HEADER.html" -O ${header}
 
     if (grep -q -e "Build for ${ARCH} failed" -e "Test ${ARCH}/build failed" ${header}); then
         eerror "${this_version_have_failed_build}"
@@ -256,7 +257,7 @@ download_kernel(){
         for deb in ${debs[@]}; do
             set_locale
             ewarn "${download_file_deb}"
-            wget -q --continue --no-verbose --directory-prefix ${DATA}/${VER} "${URL}/v${VER}/${deb}" || {
+            wget -q --continue --no-verbose --directory-prefix ${DATA}/${VER} "${URL}/v${VER_NOZER:-${VER}}/${deb}" || {
                 eerror "${download_file_deb_failed}"
                 exit
             }
@@ -518,10 +519,15 @@ elif [[ "$2" = "latest-rc" && "$1" != @(s|show) ]]; then
     VER="$(echo "${tmp_ver}" | tail -n1)"
     VER_PREV="$(echo "${tmp_ver}" | head -n1)"
 elif [[ "$1" != @(s|show) ]]; then
-    VER="$(echo ${2} | sed 's/-generic//;s/-lowlattency//;s/*//g')"
+    VER="$(echo ${2} | sed 's/-generic//;s/-lowlatency//;s/*//g')"
 fi
-set_locale
 
+(echo ${VER}      | grep -q '^[0-9]\+\.[0-9]\+$')    && { VER_NOZER="${VER}";           VER="${VER}.0"; }
+(echo ${VER_PREV} | grep -q '^[0-9]\+\.[0-9]\+$')    && { VER_PREV_NOZER="${VER_PREV}"; VER_PREV="${VER_PREV}.0"; }
+(echo ${VER}      | grep -q '^[0-9]\+\.[0-9]\+\.0$') &&   VER_NOZER="${VER/.0}"
+(echo ${VER_PREV} | grep -q '^[0-9]\+\.[0-9]\+\.0$') &&   VER_PREV_NOZER="${VER_PREV/.0}"
+
+set_locale
 detect_arch
 running_kernel="$(uname -r)"
 
