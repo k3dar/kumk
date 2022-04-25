@@ -11,6 +11,9 @@ with faking minimal libc6 version for installed package in dpkg status file...
 - when installing kernel >=5.15.7 on system without libssl3 package,
 workarounding depends on unavailable libssl3 faking to libssl1.1
 
+- when installing kernel >=5.17.4 on system without GCC >=11,
+disabling CONFIG_SLS as workaround for build DKMS modules
+
 - if Sicherboot is detected, after installing kernel he ask if set it as default...
 
 ## installing

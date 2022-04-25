@@ -96,6 +96,7 @@ set_locale(){
             upgrade_skipped="aktualizace přeskočena..."
             upgrading_myself="aktualizuji se..."
             problem_with_check_new_version="problém při zjišťování nové verze"
+            disabling_config_sls="instaluji jádro >=5.17.4 v systému s gcc <11, zakazuji CONFIG_SLS (oprava pro sestavení DKMS modulů)"
         ;;
         *)
             error_must_enter_version_as_second_parameter="ERROR: Must enter version as second param..."
@@ -162,6 +163,7 @@ set_locale(){
             upgrade_skipped="upgrade skipped..."
             upgrading_myself="upgrading myself..."
             problem_with_check_new_version="problem when checking for a new version"
+            disabling_config_sls="installing kernel >=5.17.4 in system with gcc <11, disabling CONFIG_SLS (fix for build DKMS modules)"
         ;;
     esac
 }
@@ -275,6 +277,18 @@ download_kernel(){
     fi
 }
 
+check_gcc(){
+    GCC_VER="$(gcc -dumpversion)"
+    [[ ${GCC_VER} -lt 11 ]] && {
+        dpkg --compare-versions "${VER}" "ge" "5.17.4" && {
+            DST="/usr/src/linux-headers-${VER_LONG}/include/config"
+            ewarn "${disabling_config_sls}"
+            [[ -f ${DST}/auto.conf.orig ]] || cp -a ${DST}/auto.conf ${DST}/auto.conf.orig
+            sed 's/^CONFIG_SLS=/#&/' -i ${DST}/auto.conf
+        }
+    }
+}
+
 install_kernel(){
     einfon "${install_ver_yes_no}"
     read -n1 answer; echo ""
@@ -295,6 +309,7 @@ install_kernel(){
                 ewarn "${installing_only_unpacking_package} $(basename $(ls ${DATA}/${VER}/linux-header*${MODE}*.deb))..."
                 dpkg --unpack ${DATA}/${VER}/linux-header*${MODE}*.deb >/dev/null
                 do_copy_bin
+                check_gcc
                 do_config_pkg
                 ewarn "${installing_rest}"
                 ewarnt "$(basename $(ls ${DATA}/${VER}/linux-image*.deb))"
@@ -401,7 +416,7 @@ purge_kernel(){
     [[ ${running_kernel} = ${VER_LONG} ]] && { eerror "${running_kernel} ${is_running_kernel_exiting}"; exit; }
 
     DST="/usr/src/linux-headers-${VER_LONG}"
-    for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool scripts/genksyms/genksyms scripts/sign-file; do
+    for i in scripts/basic/fixdep tools/objtool/fixdep tools/bpf/resolve_btfids/fixdep scripts/mod/modpost tools/objtool/objtool scripts/genksyms/genksyms scripts/sign-file include/config/auto.conf; do
         rmdir ${DST}/$(dirname ${i}) 2>/dev/null || true
         [[ -f ${DST}/${i}.orig ]] && { ewarn "${removing_backup_of_previous_file} ${DST}/${i}.orig"; rm -f ${DST}/${i}.orig; }
     done
