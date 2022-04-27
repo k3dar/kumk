@@ -285,7 +285,7 @@ check_gcc(){
             ewarn "${disabling_config_sls}"
             [[ -f ${DST}/auto.conf.orig ]] || cp -a ${DST}/auto.conf ${DST}/auto.conf.orig
             sed 's/^CONFIG_SLS=/#&/' -i ${DST}/auto.conf
-        }
+        } || true
     }
 }
 
