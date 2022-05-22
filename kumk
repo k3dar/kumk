@@ -262,7 +262,7 @@ download_kernel(){
         eerror "${this_version_have_failed_build}"
         exit
     else
-        header_onever="$(grep ${ARCH}/linux.*_all.deb ${header} | tail -n1 | sed "s/_all.deb.*//;s/.*${VER}.*\.//")"
+        header_onever="$(grep ${ARCH}/linux.*_all.deb ${header} | tail -n1 | sed "s/_all.deb.*//;s/.*${VER/-rc/.*.rc}.*\.//")"
         debs=( $(grep ${ARCH}/linux ${header} | sed 's/deb">.*/deb/g;s/.*href="//' | grep -v BUILD | grep -e all -e ${MODE} | grep ${header_onever}) )
         einfo "${downloading_ver}"
         [[ $debs ]] || { eerror "${packages_for_ver_not_found_exiting}"; exit; }
