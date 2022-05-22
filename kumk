@@ -278,7 +278,7 @@ download_kernel(){
 }
 
 check_gcc(){
-    GCC_VER="$(gcc -dumpversion)"
+    which gcc &>/dev/null && GCC_VER="$(gcc -dumpversion)"
     [[ ${GCC_VER} -lt 11 ]] && {
         dpkg --compare-versions "${VER}" "ge" "5.17.4" && {
             DST="/usr/src/linux-headers-${VER_LONG}/include/config"
