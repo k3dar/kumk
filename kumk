@@ -263,7 +263,7 @@ download_kernel(){
         exit
     else
         header_onever="$(grep ${ARCH}/linux.*_all.deb ${header} | tail -n1 | sed "s/_all.deb.*//;s/.*${VER/-rc/.*.rc}.*\.//")"
-        debs=( $(grep ${ARCH}/linux ${header} | sed 's/deb">.*/deb/g;s/.*href="//' | grep -v BUILD | grep -e all -e ${MODE} | grep ${header_onever}) )
+        debs=( $(grep ${ARCH}/linux ${header} | sed 's/deb">.*/deb/g;s/.*href="//' | grep -v BUILD | grep -e all -e ${MODE} | grep ${header_onever} | grep -v iwlwifi) )
         einfo "${downloading_ver}"
         [[ $debs ]] || { eerror "${packages_for_ver_not_found_exiting}"; exit; }
         for deb in ${debs[@]}; do
