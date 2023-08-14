@@ -67,6 +67,7 @@ set_locale(){
             installing_package="instaluji balíček"
             installing_only_unpacking_package="instaluji/rozbaluji_pouze balíček"
             installing_rest="instaluji zbylé:"
+            installing_kernel_version_gt_060403_req_module_unpack="instalovaná verze jádra je >6.4.3, rozbaluji moduly a opravuji initrd..."
             and="a"
             installing_kernel_version_le_51116_install_normal="instalovaná verze jádra je <=5.11.16, instaluju normálně..."
             install_canceled="Instalace zrušena..."
@@ -134,6 +135,7 @@ set_locale(){
             installing_package="installing package"
             installing_only_unpacking_package="installing/only_unpacking package"
             installing_rest="installing rest:"
+            installing_kernel_version_gt_060403_req_module_unpack="installing kernel version >6.4.3, decompressing modules and fixing initrd..."
             and="and"
             installing_kernel_version_le_51116_install_normal="installing kernel version <=5.11.16, install normal..."
             install_canceled="Install canceled..."
@@ -315,6 +317,10 @@ install_kernel(){
                 ewarnt "$(basename $(ls ${DATA}/${VER}/linux-image*.deb))"
                 ewarnt "$(basename $(ls ${DATA}/${VER}/linux-module*.deb))"
                 dpkg -i ${DATA}/${VER}/linux-image*.deb ${DATA}/${VER}/linux-module*.deb >/dev/null
+                if (dpkg --compare-versions "${VER}" "gt" "6.4.3"); then
+                  ewarn "${installing_kernel_version_gt_060403_req_module_unpack}"
+                  do_fix_compressed_modules
+                fi
             else
                 ewarn "${installing_kernel_version_le_51116_install_normal}"
                 dpkg -i ${DATA}/${VER}/*.deb >/dev/null
@@ -330,6 +336,10 @@ install_kernel(){
 
 check_depends(){
     depends_packages=( binutils )
+    if (dpkg --compare-versions "${VER}" "gt" "6.4.3"); then
+      depends_packages+=( zstd )
+    fi
+
     for package in ${depends_packages[@]}; do
         dpkg -l ${package} | grep -q '^ii' || need_install_depends+=" ${package}"
     done
@@ -404,6 +414,13 @@ do_config_pkg(){
         ewarnt "${workarounding_depends_on_unavailable_libssl3_faking_to_libssl1}"
         sed "/Depends: linux-headers-${VER_LONG/-generic}.*libssl3/s/libssl3[^)]*)/libssl1.1 (>= 1.1.0)/" -i /var/lib/dpkg/status
     } || true
+}
+
+do_fix_compressed_modules(){
+  VER_LONG=$(ls -d /usr/src/linux-headers-${VER/-rc/*rc}*${MODE} | sed 's/.*headers-//')
+  sudo find /lib/modules/${VER_LONG} -name '*.zst' -exec zstd -d {} \; >/dev/null 2>/dev/null
+  sudo depmod -a -F /boot/System.map-${VER_LONG} ${VER_LONG}
+  sudo update-initramfs -k ${VER_LONG} -u
 }
 
 purge_kernel(){
